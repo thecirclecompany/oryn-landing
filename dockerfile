@@ -7,12 +7,15 @@ WORKDIR /app
 # Install build dependencies including Python
 RUN apk add --no-cache python3 make g++
 
-# Enable Corepack (Yarn) and install deps with caching
-ENV NODE_ENV=production
-RUN corepack enable
+# Enable Corepack (Yarn Berry) and install deps with caching
+ENV NODE_ENV=production \
+    YARN_ENABLE_IMMUTABLE_INSTALLS=true \
+    YARN_CACHE_FOLDER=/yarn-cache
+RUN corepack enable && corepack prepare yarn@4.5.1 --activate
 
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn ./.yarn
+RUN yarn install --immutable
 
 # Copy source files
 COPY . .
@@ -24,8 +27,10 @@ RUN yarn build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-ENV NODE_ENV=production
-RUN corepack enable
+ENV NODE_ENV=production \
+    YARN_ENABLE_IMMUTABLE_INSTALLS=true \
+    YARN_CACHE_FOLDER=/yarn-cache
+RUN corepack enable && corepack prepare yarn@4.5.1 --activate
 
 # Copy build artifacts and production dependencies from builder
 COPY --from=builder /app/.next ./.next

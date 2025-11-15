@@ -14,7 +14,6 @@ ENV NODE_ENV=production \
 RUN corepack enable && corepack prepare yarn@4.5.1 --activate
 
 COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn ./.yarn
 RUN yarn install --immutable
 
 # Copy source files

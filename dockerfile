@@ -27,15 +27,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable
 
-# Install only production dependencies
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile --production --ignore-scripts && yarn cache clean
-
-# Copy build artifacts
+# Copy build artifacts and production dependencies from builder
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.* ./
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/yarn.lock ./yarn.lock
+COPY --from=builder /app/node_modules ./node_modules
 
 # Expose the Next.js default port
 EXPOSE 3000

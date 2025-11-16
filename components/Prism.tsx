@@ -478,7 +478,12 @@ const Prism: React.FC<PrismProps> = ({
     suspendWhenOffscreen,
   ]);
 
-  return <div className="w-full h-full absolute inset-0" ref={containerRef} />;
+  return (
+    <div
+      className="w-full h-full absolute inset-0 opacity-60 md:opacity-80 "
+      ref={containerRef}
+    />
+  );
 };
 
 export default Prism;

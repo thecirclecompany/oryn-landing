@@ -107,7 +107,7 @@ export default function Home() {
       if (response.status === 409) {
         setWaitlistState({
           status: "error",
-          message: "Looks like you’re already whitelisted.",
+          message: "Looks like you’re already on the Waitlist!",
         });
         return;
       }
@@ -165,7 +165,7 @@ export default function Home() {
           </linearGradient>
         </defs>
       </svg>
-      <div className="relative flex flex-col items-center text-center gap-6 px-6 z-50">
+      <div className="relative flex flex-col items-center text-center gap-6 px-6 z-50 mt-10 sm:mt-0">
         <div className="space-y-8 max-w-2xl">
           <h1 className="text-3xl md:text-6xl leading-[100%] font-semibold text-white">
             One Bridge.
@@ -182,18 +182,18 @@ export default function Home() {
             Launching Soon
           </p>
           <div
-            className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full"
+            className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 w-full"
             aria-live="polite"
           >
             {countdownItems.map(({ label, value }) => (
               <div
                 key={label}
-                className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3"
+                className="rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 px-3 py-2 sm:px-4 sm:py-3"
               >
-                <p className="text-3xl font-semibold text-white tabular-nums">
+                <p className="text-2xl sm:text-3xl font-semibold text-white tabular-nums">
                   {value}
                 </p>
-                <p className="text-xs sm:text-sm uppercase tracking-[0.4em] text-white/60">
+                <p className="text-[10px] sm:text-xs uppercase tracking-[0.4em] text-white/60">
                   {label}
                 </p>
               </div>

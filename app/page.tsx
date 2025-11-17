@@ -1,11 +1,17 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAccount, useDisconnect, useSignMessage } from "wagmi";
+import confetti from "canvas-confetti";
 import Prism from "@/components/Prism";
+import { WalletModal } from "@/components/WalletModal";
 
 const launchDate = new Date("2025-12-07T00:00:00Z");
-const WAITLIST_ENDPOINT =
-  "https://z4g0cco4ok4sw8k4sso4800k.thecircleco.xyz/waitlist";
+const BACKEND_BASE_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL;
+const SIWE_MESSAGE_ENDPOINT = `${BACKEND_BASE_URL}/siwe-message`;
+const WAITLIST_CHECK_ENDPOINT = `${BACKEND_BASE_URL}/waitlist/check`;
+const WAITLIST_ENDPOINT = `${BACKEND_BASE_URL}/waitlist`;
 
 type TimeLeft = {
   days: number;
@@ -38,11 +44,17 @@ export default function Home() {
     return getTimeLeft();
   });
   const [isHydrated, setIsHydrated] = useState(false);
-  const [email, setEmail] = useState("");
   const [waitlistState, setWaitlistState] = useState<{
     status: "idle" | "loading" | "success" | "error";
     message: string;
   }>({ status: "idle", message: "" });
+  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+  const [isInWaitlist, setIsInWaitlist] = useState(false);
+  const [isCheckingWaitlist, setIsCheckingWaitlist] = useState(false);
+
+  const { address, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { signMessageAsync, isPending: isSigning } = useSignMessage();
 
   useEffect(() => {
     const timer = setInterval(() => setTimeLeft(getTimeLeft()), 1000);
@@ -53,6 +65,31 @@ export default function Home() {
     const frame = requestAnimationFrame(() => setIsHydrated(true));
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    const checkWaitlistStatus = async () => {
+      if (!address || !isConnected) {
+        setIsInWaitlist(false);
+        setWaitlistState({ status: "idle", message: "" });
+        return;
+      }
+
+      setIsCheckingWaitlist(true);
+      try {
+        const checkResponse = await fetch(`${WAITLIST_CHECK_ENDPOINT}?address=${address}`);
+        if (checkResponse.ok) {
+          const { exists } = await checkResponse.json();
+          setIsInWaitlist(exists);
+        }
+      } catch (error) {
+        setIsInWaitlist(false);
+      } finally {
+        setIsCheckingWaitlist(false);
+      }
+    };
+
+    checkWaitlistStatus();
+  }, [address, isConnected]);
 
   type CountdownItem = { label: string; value: string };
 
@@ -74,50 +111,136 @@ export default function Home() {
     ];
   }, [isHydrated, timeLeft]);
 
-  const handleWaitlistSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const formatAddress = (addr: string) => {
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
 
-    if (!email.trim()) {
-      setWaitlistState({
-        status: "error",
-        message: "Please enter a valid email address.",
-      });
-      return;
-    }
+  const handleConnectWallet = () => {
+    setIsWalletModalOpen(true);
+  };
 
-    setWaitlistState({ status: "loading", message: "Joining waitlist..." });
+  const handleJoinWaitlist = async () => {
+    if (!address) return;
+
+    setWaitlistState({ status: "loading", message: "Checking waitlist status..." });
 
     try {
-      const response = await fetch(
-        `${WAITLIST_ENDPOINT}?email=${encodeURIComponent(email.trim())}`,
-        {
-          method: "POST",
+      const checkResponse = await fetch(`${WAITLIST_CHECK_ENDPOINT}?address=${address}`);
+      
+      if (checkResponse.ok) {
+        const { exists } = await checkResponse.json();
+        
+        if (exists) {
+          setIsInWaitlist(true);
+          setWaitlistState({
+            status: "success",
+            message: "You're already on the waitlist!",
+          });
+          return;
         }
-      );
+      }
+
+      setWaitlistState({ status: "loading", message: "Preparing signature..." });
+
+      const siweResponse = await fetch(`${SIWE_MESSAGE_ENDPOINT}?address=${address}`);
+      
+      if (!siweResponse.ok) {
+        const errorData = await siweResponse.json().catch(() => ({}));
+        setWaitlistState({
+          status: "error",
+          message: errorData.error || "Failed to prepare signature request. Please try again.",
+        });
+        return;
+      }
+
+      const { message } = await siweResponse.json();
+
+      setWaitlistState({ status: "loading", message: "Please sign the message in your wallet..." });
+
+      const signature = await signMessageAsync({ message });
+
+      setWaitlistState({ status: "loading", message: "Verifying and joining waitlist..." });
+
+      const response = await fetch(WAITLIST_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          address,
+          signature,
+          message,
+        }),
+      });
 
       if (response.ok) {
+        setIsInWaitlist(true);
         setWaitlistState({
           status: "success",
-          message: "Welcome aboard! You’re on the waitlist.",
+          message: "Welcome aboard! You're on the waitlist.",
         });
-        setEmail("");
+        
+        const duration = 3000;
+        const animationEnd = Date.now() + duration;
+        const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+        function randomInRange(min: number, max: number) {
+          return Math.random() * (max - min) + min;
+        }
+
+        const interval = setInterval(function() {
+          const timeLeft = animationEnd - Date.now();
+
+          if (timeLeft <= 0) {
+            return clearInterval(interval);
+          }
+
+          const particleCount = 50 * (timeLeft / duration);
+          confetti({
+            ...defaults,
+            particleCount,
+            origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+          });
+          confetti({
+            ...defaults,
+            particleCount,
+            origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+          });
+        }, 250);
+
         return;
       }
 
       if (response.status === 409) {
         setWaitlistState({
           status: "error",
-          message: "Looks like you’re already on the Waitlist!",
+          message: "Looks like you're already on the Waitlist!",
         });
         return;
       }
 
+      const errorData = await response.json().catch(() => ({}));
       setWaitlistState({
         status: "error",
-        message: "Already added to the waitlist.",
+        message: errorData.error || errorData.message || "Failed to join waitlist. Please try again.",
       });
-    } catch (error) {
-      console.error("Waitlist error", error);
+    } catch (error: any) {
+      const isUserRejection =
+        error?.code === 4001 ||
+        error?.message?.toLowerCase().includes("reject") ||
+        error?.message?.toLowerCase().includes("user denied") ||
+        error?.message?.toLowerCase().includes("user rejected") ||
+        error?.message?.toLowerCase().includes("user cancelled");
+
+      if (isUserRejection) {
+        setWaitlistState({ status: "idle", message: "" });
+        return;
+      }
+
+      if (process.env.NODE_ENV === "development") {
+        console.error("Waitlist error", error);
+      }
+
       setWaitlistState({
         status: "error",
         message: "Network hiccup — check your connection and try again.",
@@ -205,32 +328,50 @@ export default function Home() {
             </p>
           )}
         </div>
-        <form
-          className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-xl"
-          onSubmit={handleWaitlistSubmit}
-        >
-          <label htmlFor="waitlist-email" className="sr-only">
-            Email address
-          </label>
-          <input
-            id="waitlist-email"
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-full bg-white/10 border border-white/20 text-white placeholder-white/60 px-6 py-3 focus:outline-none focus:ring-2 focus:ring-[#9CE5FF]/80 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={waitlistState.status === "loading"}
-          />
-          <button
-            type="submit"
-            className="w-full sm:w-auto text-nowrap cursor-pointer rounded-full bg-linear-to-r from-[#C7FF6F] via-[#F9FF8D] to-[#C7FF6F] text-black font-semibold px-8 py-3 transition duration-300 hover:from-[#F9FF8D] hover:via-[#D7FF7F] hover:to-[#F9FF8D] hover:shadow-[0_0_55px_rgba(201,255,128,0.65)] shadow-[0_0_40px_rgba(201,255,128,0.45)] disabled:opacity-70 disabled:cursor-not-allowed"
-            disabled={waitlistState.status === "loading"}
-          >
-            {waitlistState.status === "loading"
-              ? "Joining..."
-              : "Join Waitlist"}
-          </button>
-        </form>
+        <div className="flex flex-col items-center gap-3 w-full max-w-xl">
+          {!isConnected ? (
+            <button
+              onClick={handleConnectWallet}
+              className="w-full sm:w-auto text-nowrap cursor-pointer rounded-full bg-linear-to-r from-[#C7FF6F] via-[#F9FF8D] to-[#C7FF6F] text-black font-semibold px-8 py-3 transition duration-300 hover:from-[#F9FF8D] hover:via-[#D7FF7F] hover:to-[#F9FF8D] hover:shadow-[0_0_55px_rgba(201,255,128,0.65)] shadow-[0_0_40px_rgba(201,255,128,0.45)]"
+            >
+              Connect Wallet
+            </button>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
+              <div className="flex items-center gap-2 px-8 py-3 rounded-full bg-white/10 border border-white/20 text-white text-sm">
+                <div className="w-2 h-2 rounded-full bg-[#C7FF6F] animate-pulse"></div>
+                <span className="font-medium">{formatAddress(address!)}</span>
+                <button
+                  onClick={() => disconnect()}
+                  className="ml-2 text-white/60 hover:text-white transition text-xs"
+                  aria-label="Disconnect wallet"
+                >
+                  ✕
+                </button>
+              </div>
+              {isInWaitlist ? (
+                <div className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#C7FF6F]/20 border border-[#C7FF6F]/30 text-[#C7FF6F] font-semibold">
+                  <span>✓</span>
+                  <span>You're on the waitlist!</span>
+                </div>
+              ) : (
+                <button
+                  onClick={handleJoinWaitlist}
+                  className="w-full sm:w-auto text-nowrap cursor-pointer rounded-full bg-linear-to-r from-[#C7FF6F] via-[#F9FF8D] to-[#C7FF6F] text-black font-semibold px-8 py-3 transition duration-300 hover:from-[#F9FF8D] hover:via-[#D7FF7F] hover:to-[#F9FF8D] hover:shadow-[0_0_55px_rgba(201,255,128,0.65)] shadow-[0_0_40px_rgba(201,255,128,0.45)] disabled:opacity-70 disabled:cursor-not-allowed"
+                  disabled={waitlistState.status === "loading" || isSigning || isCheckingWaitlist}
+                >
+                  {isCheckingWaitlist
+                    ? "Checking..."
+                    : waitlistState.status === "loading" || isSigning
+                    ? waitlistState.message.includes("sign")
+                      ? "Signing..."
+                      : "Joining..."
+                    : "Join Waitlist"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         {waitlistState.status !== "idle" && (
           <p
             aria-live="polite"
@@ -244,6 +385,10 @@ export default function Home() {
           </p>
         )}
       </div>
+      <WalletModal
+        isOpen={isWalletModalOpen}
+        onClose={() => setIsWalletModalOpen(false)}
+      />
     </div>
   );
 }

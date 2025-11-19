@@ -6,6 +6,8 @@ import {
   WALLETS,
   detectWallet,
   getWalletAvailability,
+  isMobileDevice,
+  getMobileWalletDeepLink,
 } from "@/lib/walletDetection";
 import Image from "next/image";
 import { AnimatePresence, motion } from "motion/react";
@@ -131,6 +133,16 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
 
   const handleConnect = async (walletId: string) => {
     const specificProvider = walletProviders[walletId];
+    const isMobile = isMobileDevice();
+
+    // On mobile, if no provider is detected, use deep link
+    if (isMobile && !specificProvider) {
+      const deepLink = getMobileWalletDeepLink(walletId);
+      if (deepLink) {
+        window.location.href = deepLink;
+        return;
+      }
+    }
 
     if (specificProvider) {
       try {
@@ -151,6 +163,12 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
         if (!isUserRejection(error) && process.env.NODE_ENV === "development") {
           console.error("Connection error:", error);
         }
+      }
+    } else if (isMobile) {
+      // Fallback: try deep link even if injected connector exists
+      const deepLink = getMobileWalletDeepLink(walletId);
+      if (deepLink) {
+        window.location.href = deepLink;
       }
     }
   };
@@ -204,8 +222,15 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                       wallet.id,
                       detectedWallets
                     );
+                    const isMobile = isMobileDevice();
+                    // On mobile, wallets are always connectable via deep links
+                    // On desktop, need injected connector or detected provider
                     const canConnect =
-                      isAvailable && injectedConnector && !isPending;
+                      isAvailable &&
+                      (isMobile ||
+                        injectedConnector ||
+                        walletProviders[wallet.id]) &&
+                      !isPending;
 
                     return (
                       <button
@@ -231,9 +256,14 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
                           <div className="text-white font-medium">
                             {wallet.name}
                           </div>
-                          {!isAvailable && (
+                          {!isAvailable && !isMobile && (
                             <div className="text-xs text-white/60 mt-1">
                               Not available
+                            </div>
+                          )}
+                          {isMobile && !detectedWallets[wallet.id] && (
+                            <div className="text-xs text-white/60 mt-1">
+                              Tap to open in wallet app
                             </div>
                           )}
                         </div>

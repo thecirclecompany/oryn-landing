@@ -124,7 +124,22 @@ export function detectWallet(): {
     }
   });
 
-  // Step 4: Fallback to legacy detection for wallets that don't support EIP-6963
+  // Step 4: Check for mobile-specific wallet providers
+  const mobileProviders: Record<string, any> = {
+    trust: (window as any).trustwallet,
+    coinbase: (window as any).coinbase,
+    okx: (window as any).okxwallet,
+    rabby: (window as any).rabby,
+  };
+
+  Object.entries(mobileProviders).forEach(([walletId, provider]) => {
+    if (provider && !detected[walletId]) {
+      detected[walletId] = true;
+      providers[walletId] = provider;
+    }
+  });
+
+  // Step 5: Fallback to legacy detection for wallets that don't support EIP-6963
   if (window.ethereum) {
     const ethereum = window.ethereum as any;
     const allProviders: any[] = [];
@@ -235,9 +250,36 @@ export function detectWallet(): {
   return { detected, providers };
 }
 
+export function isMobileDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+}
+
+export function getMobileWalletDeepLink(walletId: string): string | null {
+  const currentUrl = encodeURIComponent(window.location.href);
+  
+  const deepLinks: Record<string, string> = {
+    metamask: `https://metamask.app.link/dapp?url=${currentUrl}`,
+    coinbase: `https://go.cb-w.com/dapp?url=${currentUrl}`,
+    trust: `https://link.trustwallet.com/open_url?url=${currentUrl}`,
+    okx: `https://www.okx.com/download?deeplink=${currentUrl}`,
+    core: `https://core.app/wc?uri=${encodeURIComponent(`wc:${currentUrl}`)}`,
+    rabby: `https://rabby.io/wc?uri=${encodeURIComponent(`wc:${currentUrl}`)}`,
+    brave: `https://brave.com/wallet?uri=${encodeURIComponent(`wc:${currentUrl}`)}`,
+  };
+
+  return deepLinks[walletId] || null;
+}
+
 export function getWalletAvailability(
   walletId: string,
   detectedWallets: Record<string, boolean>
 ): boolean {
+  // On mobile, wallets are available via deep links even if not detected
+  if (isMobileDevice()) {
+    return true;
+  }
   return detectedWallets[walletId] === true;
 }

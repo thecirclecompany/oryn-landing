@@ -59,6 +59,10 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
         trust: "trust",
         "trust wallet": "trust",
         "com.trustwallet": "trust",
+        core: "core",
+        "core wallet": "core",
+        "app.core": "core",
+        "com.avaxwallet.core": "core",
       };
 
       const handleAnnounce = (event: Event) => {
@@ -102,6 +106,18 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
     () => connectors.find((c) => c.id === "injected"),
     [connectors]
   );
+
+  const sortedWallets = useMemo(() => {
+    return [...WALLETS].sort((a, b) => {
+      const aAvailable = getWalletAvailability(a.id, detectedWallets);
+      const bAvailable = getWalletAvailability(b.id, detectedWallets);
+      
+      if (aAvailable && !bAvailable) return -1;
+      if (!aAvailable && bAvailable) return 1;
+      
+      return 0;
+    });
+  }, [detectedWallets]);
 
   const isUserRejection = (error: any): boolean => {
     return (
@@ -183,7 +199,7 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
             <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto px-6 py-2 sm:py-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <div className="space-y-1 sm:space-y-4 pb-4">
-                  {WALLETS.map((wallet) => {
+                  {sortedWallets.map((wallet) => {
                     const isAvailable = getWalletAvailability(
                       wallet.id,
                       detectedWallets

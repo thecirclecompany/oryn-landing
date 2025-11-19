@@ -59,6 +59,10 @@ export function WalletModal({ isOpen, onClose }: WalletModalProps) {
         trust: "trust",
         "trust wallet": "trust",
         "com.trustwallet": "trust",
+        core: "core",
+        "core wallet": "core",
+        "app.core": "core",
+        "com.avaxwallet.core": "core",
       };
 
       const handleAnnounce = (event: Event) => {

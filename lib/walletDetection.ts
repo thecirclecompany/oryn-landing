@@ -49,6 +49,11 @@ export const WALLETS: Omit<WalletInfo, "isAvailable" | "provider">[] = [
     name: "Trust Wallet",
     icon: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQjTrKgy8TJ9muJphpzXZAGb-TTs5c2igXR6Q&s",
   },
+  {
+    id: "core",
+    name: "Core",
+    icon: "https://core.app/favicon.ico",
+  },
 ];
 
 const WALLET_MAPPING: Record<string, string> = {
@@ -67,6 +72,10 @@ const WALLET_MAPPING: Record<string, string> = {
   trust: "trust",
   "trust wallet": "trust",
   "com.trustwallet": "trust",
+  core: "core",
+  "core wallet": "core",
+  "app.core": "core",
+  "com.avaxwallet.core": "core",
 };
 
 function normalizeWalletName(name: string): string {
@@ -203,6 +212,19 @@ export function detectWallet(): {
       ) {
         detected.trust = true;
         providers.trust = provider;
+      }
+
+      // Core Wallet
+      if (
+        (provider.isCore === true ||
+          provider.isCoreWallet === true ||
+          provider.isAvalanche === true ||
+          provider.constructor?.name === "CoreProvider" ||
+          provider.constructor?.name === "AvalancheProvider") &&
+        !detected.core
+      ) {
+        detected.core = true;
+        providers.core = provider;
       }
     });
   }

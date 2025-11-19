@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { NextRequest } from 'next/server';
 
 export const runtime = 'edge';
 export const alt = 'Oryn Finance — Avalanche Interoperability Layer';
@@ -9,7 +10,7 @@ export const size = {
 
 export const contentType = 'image/png';
 
-export default async function Image() {
+export async function GET(request: NextRequest) {
   return new ImageResponse(
     (
       <div

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAccount, useDisconnect, useSignMessage } from "wagmi";
+import { useAccount, useDisconnect, useSignMessage, useSwitchChain } from "wagmi";
+import { avalanche } from "wagmi/chains";
 import confetti from "canvas-confetti";
 import Prism from "@/components/Prism";
 import { WalletModal } from "@/components/WalletModal";
@@ -51,9 +52,10 @@ export default function Home() {
   const [isInWaitlist, setIsInWaitlist] = useState(false);
   const [isCheckingWaitlist, setIsCheckingWaitlist] = useState(false);
 
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { disconnect } = useDisconnect();
   const { signMessageAsync, isPending: isSigning } = useSignMessage();
+  const { switchChainAsync } = useSwitchChain();
 
   useEffect(() => {
     const timer = setInterval(() => setTimeLeft(getTimeLeft()), 1000);
@@ -167,6 +169,35 @@ export default function Home() {
       }
 
       const { message } = await siweResponse.json();
+
+      if (chainId !== avalanche.id) {
+        setWaitlistState({
+          status: "loading",
+          message: "Please switch to Avalanche network...",
+        });
+
+        try {
+          await switchChainAsync({ chainId: avalanche.id });
+        } catch (switchError: any) {
+          const isUserRejection =
+            switchError?.code === 4001 ||
+            switchError?.message?.toLowerCase().includes("reject") ||
+            switchError?.message?.toLowerCase().includes("user denied") ||
+            switchError?.message?.toLowerCase().includes("user rejected") ||
+            switchError?.message?.toLowerCase().includes("user cancelled");
+
+          if (isUserRejection) {
+            setWaitlistState({ status: "idle", message: "" });
+            return;
+          }
+
+          setWaitlistState({
+            status: "error",
+            message: "Failed to switch to Avalanche network. Please try again.",
+          });
+          return;
+        }
+      }
 
       setWaitlistState({
         status: "loading",
